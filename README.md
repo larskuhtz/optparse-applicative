@@ -238,7 +238,7 @@ will give the same result as
     -q --target world
 
 It is this property which leads us to an Applicative interface
-instead of a Monadic one, as all option must be considered in
+instead of a Monadic one, as all options must be considered in
 parallel, and can not depend on the output of other options.
 
 Note, however, that the order of sequencing is still somewhat
@@ -475,8 +475,8 @@ usually used as one side of an alternative.
 
 Another interesting use for the `flag'` builder is to count the
 number of instances on the command line, for example, verbosity
-settings could be specified on a scale; the following parser with
-count the number of of instances of `-v` on the command line.
+settings could be specified on a scale; the following parser will
+count the number of instances of `-v` on the command line.
 
 ```haskell
 length <$> many (flag' () (short 'v'))

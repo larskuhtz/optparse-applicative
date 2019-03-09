@@ -51,7 +51,7 @@ module Options.Applicative.Common (
   ) where
 
 import Control.Applicative
-import Control.Monad (guard, mzero, msum, when, liftM)
+import Control.Monad (guard, mzero, msum, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT(..), get, put, runStateT)
 import Data.List (isPrefixOf)
@@ -78,22 +78,6 @@ isOptionPrefix _ _ = False
 -- | Create a parser composed of a single option.
 liftOpt :: Option a -> Parser a
 liftOpt = OptP
-
-argMatches :: MonadP m => OptReader a -> String
-           -> Maybe (StateT Args m a)
-argMatches opt arg = case opt of
-  ArgReader _ rdr -> Just . lift $
-    runReadM (crReader rdr) arg
-  CmdReader _ _ f ->
-    flip fmap (f arg) $ \subp -> StateT $ \args -> do
-      prefs <- getPrefs
-      let runSubparser
-            | prefBacktrack prefs = \i a ->
-                runParser (infoPolicy i) CmdStart (infoParser i) a
-            | otherwise = \i a
-            -> (,) <$> runParserInfo i a <*> pure []
-      enterContext arg subp *> runSubparser subp args <* exitContext
-  _ -> Nothing
 
 optMatches :: MonadP m => Bool -> OptReader a -> OptWord -> Maybe (StateT Args m a)
 optMatches disambiguate opt (OptWord arg1 val) = case opt of
@@ -150,10 +134,10 @@ parseWord ('-' : w) = case w of
 parseWord _ = Nothing
 
 searchParser :: Monad m
-             => (forall r . Option r -> NondetT m r)
+             => (forall r . Option r -> NondetT m (Parser r))
              -> Parser a -> NondetT m (Parser a)
 searchParser _ (NilP _) = mzero
-searchParser f (OptP opt) = liftM pure (f opt)
+searchParser f (OptP opt) = f opt
 searchParser f (MultP p1 p2) = foldr1 (<!>)
   [ do p1' <- searchParser f p1
        return (p1' <*> p2)
@@ -175,27 +159,42 @@ searchOpt pprefs w = searchParser $ \opt -> do
   let disambiguate = prefDisambiguate pprefs
                   && optVisibility opt > Internal
   case optMatches disambiguate (optMain opt) w of
-    Just matcher -> lift matcher
+    Just matcher -> lift $ fmap pure matcher
     Nothing -> mzero
 
-searchArg :: MonadP m => String -> Parser a
+searchArg :: MonadP m => ParserPrefs -> String -> Parser a
           -> NondetT (StateT Args m) (Parser a)
-searchArg arg = searchParser $ \opt -> do
+searchArg prefs arg = searchParser $ \opt -> do
   when (isArg (optMain opt)) cut
-  case argMatches (optMain opt) arg of
-    Just matcher -> lift matcher
-    Nothing -> mzero
+  case optMain opt of
+    CmdReader _ _ f ->
+      case (f arg, prefBacktrack prefs) of
+        (Just subp, NoBacktrack) -> lift $ do
+          args <- get <* put []
+          fmap pure . lift $ enterContext arg subp *> runParserInfo subp args <* exitContext
+
+        (Just subp, Backtrack) -> fmap pure . lift . StateT $ \args -> do
+          enterContext arg subp *> runParser (infoPolicy subp) CmdStart (infoParser subp) args <* exitContext
+
+        (Just subp, SubparserInline) -> lift $ do
+          lift $ enterContext arg subp
+          return $ infoParser subp
+
+        (Nothing, _)  -> mzero
+    ArgReader _ rdr ->
+      fmap pure . lift . lift $ runReadM (crReader rdr) arg
+    _ -> mzero
 
 stepParser :: MonadP m => ParserPrefs -> ArgPolicy -> String
            -> Parser a -> NondetT (StateT Args m) (Parser a)
-stepParser _ AllPositionals arg p =
-  searchArg arg p
+stepParser pprefs AllPositionals arg p =
+  searchArg pprefs arg p
 stepParser pprefs ForwardOptions arg p = case parseWord arg of
-  Just w -> searchOpt pprefs w p <|> searchArg arg p
-  Nothing -> searchArg arg p
+  Just w -> searchOpt pprefs w p <|> searchArg pprefs arg p
+  Nothing -> searchArg pprefs arg p
 stepParser pprefs _ arg p = case parseWord arg of
   Just w -> searchOpt pprefs w p
-  Nothing -> searchArg arg p
+  Nothing -> searchArg pprefs arg p
 
 
 -- | Apply a 'Parser' to a command line, and return a result and leftover
@@ -274,7 +273,7 @@ treeMapParser g = simplify . go False False False g
       | otherwise
       = MultNode []
     go m d r f (MultP p1 p2) = MultNode [go m d r f p1, go m d r' f p2]
-      where r' = r || has_positional p1
+      where r' = r || hasArg p1
     go m d r f (AltP p1 p2) = AltNode [go m d' r f p1, go m d' r f p2]
       where d' = d || has_default p1 || has_default p2
     go _ d r f (BindP p k) =
@@ -283,18 +282,12 @@ treeMapParser g = simplify . go False False False g
         Nothing -> go'
         Just aa -> MultNode [ go', go True d r f (k aa) ]
 
-    has_positional :: Parser a -> Bool
-    has_positional (NilP _) = False
-    has_positional (OptP p) = (is_positional . optMain) p
-    has_positional (MultP p1 p2) = has_positional p1 || has_positional p2
-    has_positional (AltP p1 p2) = has_positional p1 || has_positional p2
-    has_positional (BindP p _) = has_positional p
-
-    is_positional :: OptReader a -> Bool
-    is_positional (OptReader {})  = False
-    is_positional (FlagReader {}) = False
-    is_positional (ArgReader {})  = True
-    is_positional (CmdReader {})  = True
+    hasArg :: Parser a -> Bool
+    hasArg (NilP _) = False
+    hasArg (OptP p) = (isArg . optMain) p
+    hasArg (MultP p1 p2) = hasArg p1 || hasArg p2
+    hasArg (AltP p1 p2) = hasArg p1 || hasArg p2
+    hasArg (BindP p _) = hasArg p
 
 
 simplify :: OptTree a -> OptTree a

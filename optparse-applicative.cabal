@@ -1,5 +1,5 @@
 name:                optparse-applicative
-version:             0.14.2.0
+version:             0.14.3.0
 synopsis:            Utilities and combinators for parsing command line options
 description:
     optparse-applicative is a haskell library for parsing options
@@ -24,11 +24,6 @@ build-type:          Simple
 cabal-version:       >= 1.8
 extra-source-files:  CHANGELOG.md
                      README.md
-                     tests/Examples/Alternatives.hs
-                     tests/Examples/Cabal.hs
-                     tests/Examples/Commands.hs
-                     tests/Examples/Hello.hs
-                     tests/Examples/Formatting.hs
                      tests/alt.err.txt
                      tests/cabal.err.txt
                      tests/carry.err.txt
@@ -57,29 +52,28 @@ library
   if impl(ghc >= 8.0)
     ghc-options:  -Wno-redundant-constraints -Wcompat -Wnoncanonical-monad-instances -Wnoncanonical-monadfail-instances
 
-  exposed-modules:     Options.Applicative,
-                       Options.Applicative.Arrows,
-                       Options.Applicative.BashCompletion,
-                       Options.Applicative.Builder,
-                       Options.Applicative.Builder.Completer,
-                       Options.Applicative.Builder.Internal,
-                       Options.Applicative.Common,
-                       Options.Applicative.Extra,
-                       Options.Applicative.Help,
-                       Options.Applicative.Help.Chunk,
-                       Options.Applicative.Help.Core,
-                       Options.Applicative.Help.Levenshtein,
-                       Options.Applicative.Help.Pretty,
-                       Options.Applicative.Help.Types,
-                       Options.Applicative.Types,
-                       Options.Applicative.Internal
-
+  exposed-modules:     Options.Applicative
+                     , Options.Applicative.Arrows
+                     , Options.Applicative.BashCompletion
+                     , Options.Applicative.Builder
+                     , Options.Applicative.Builder.Completer
+                     , Options.Applicative.Builder.Internal
+                     , Options.Applicative.Common
+                     , Options.Applicative.Extra
+                     , Options.Applicative.Help
+                     , Options.Applicative.Help.Chunk
+                     , Options.Applicative.Help.Core
+                     , Options.Applicative.Help.Levenshtein
+                     , Options.Applicative.Help.Pretty
+                     , Options.Applicative.Help.Types
+                     , Options.Applicative.Types
+                     , Options.Applicative.Internal
 
   build-depends:       base                            == 4.*
                      , transformers                    >= 0.2 && < 0.6
                      , transformers-compat             >= 0.3 && < 0.7
                      , process                         >= 1.0 && < 1.7
-                     , ansi-wl-pprint                  >= 0.6.6 && < 0.7
+                     , ansi-wl-pprint                  >= 0.6.8 && < 0.7
 
   if !impl(ghc >= 8)
     build-depends:     semigroups                      >= 0.10 && < 0.19
@@ -95,10 +89,16 @@ test-suite optparse-applicative-tests
   hs-source-dirs:
                        tests
 
+  other-modules:       Examples.Alternatives
+                     , Examples.Cabal
+                     , Examples.Commands
+                     , Examples.Formatting
+                     , Examples.Hello
+
   build-depends:       base
                      , bytestring                      == 0.10.*
                      , optparse-applicative
-                     , QuickCheck                      >= 2.8 && < 2.12
+                     , QuickCheck                      >= 2.8 && < 2.13
 
   if !impl(ghc >= 8)
     build-depends:     semigroups

@@ -194,6 +194,7 @@ module Options.Applicative (
   showHelpOnError,
   showHelpOnEmpty,
   noBacktrack,
+  subparserInline,
   columns,
   defaultPrefs,
 
